@@ -8,6 +8,21 @@ from keras.layers import Dense, Dropout, Flatten, Conv2D, MaxPooling2D
 
 np.random.seed(1)
 
+###########################LOADING DATA###############
+#load small dataset
+data = pd.read_csv('mnist_train_100.csv', header=None)
+x_train, y_train = data.iloc[:,1:], data.iloc[:,0]
+x_train = (data / 255.0 * 0.99) + 0.01
+numevents = x_train.shape[0]
+#####################################################
+
+################Neural Network Parameters#############
+inputnodes = data.shape[1]      #input nodes from data
+hiddennodes = 200               #number of hidden nodes
+outputnodes = 10                #outputs node names
+learningrate = 0.3              #learningrate
+#######################################################
+
 ###########################NEURAL NETWORK CLASS#################################
 class NeuralNetwork:
 	
@@ -22,7 +37,7 @@ class NeuralNetwork:
 		#learning_rate
 		self.lr = learningrate
 		#activation_function
-		self.activation_function = lambda x: scipy.special.expit(x)
+		self.activation_func = lambda x: scipy.special.expit(x)
 
 	def train(self, inputs_list, targets_list):
 		#convert list to array
@@ -30,9 +45,9 @@ class NeuralNetwork:
 		target = np.array(targets_list, ndmin=2).T
 		#calculate signals
 		hidden_input = np.dot(self.wih, input)
-		hidden_output = self.activation_function(hidden_input)
+		hidden_output = self.activation_func(hidden_input)
 		final_input = np.dot(self.who, hidden_output)
-		final_output = self.activation_function(final_input)
+		final_output = self.activation_func(final_input)
 		#calculate errors
 		output_error = target - final_output
 		hidden_error = np.dot(self.who.T, output_error)
@@ -40,14 +55,14 @@ class NeuralNetwork:
 		self.who += self.lr * np.dot((output_error * final_output * (1. - final_output)), np.transpose(hidden_output))
 		self.wih += self.lr * np.dot((hidden_error * hidden_output *(1. - hidden_output)), np.transpose(input))
 
-	def query(self, inputs_list):
+	def test(self, inputs_list):
 		#convert inputs lists to 2d array
 		input = np.array(inputs_list, ndmin=2).T
 		#calculate signals into hidden layer
 		hidden_input = np.dot(self.wih, input)
-		hidden_output = self.activation_function(hidden_input)
+		hidden_output = self.activation_func(hidden_input)
 		final_input = np.dot(self.who, hidden_output)
-		final_output = self.activation_function(final_input)
+		final_output = self.activation_func(final_input)
 
 		return final_output
 
@@ -68,23 +83,8 @@ def imageprepare(argv):
 
 ######################################################
 
-###########################LOADING DATA###############
-#load small dataset
-data = pd.read_csv('mnist_train_100.csv', header=None)
-x_train, y_train = data.iloc[:,1:], data.iloc[:,0]
-x_train = (data / 255.0 * 0.99) + 0.01
-numevents = x_train.shape[0]
-#####################################################
-
-################Neural Network Parameters#############
-inputnodes = data.shape[1]      #input nodes from data
-hiddennodes = 200               #number of hidden nodes
-outputnodes = 10                #outputs node names
-learningrate = 0.3              #learningrate
-n = NeuralNetwork(inputnodes, hiddennodes, outputnodes, learningrate)
-#######################################################
-
 ##################RUN NETWORK##########################
+n = NeuralNetwork(inputnodes, hiddennodes, outputnodes, learningrate)
 for record in range(numevents):
 	input = np.asarray(x_train.iloc[record])
 	target = np.zeros(outputnodes) + 0.01
@@ -98,11 +98,15 @@ x_test, y_test = test.iloc[:,1:], test.iloc[:,0]
 x_test = (test / 255.0 * 0.99) + 0.01
 #######################################################
 
-###################RUN QUERY###########################
-num=0
+###################RUN TEST###########################
+num, match = 0, 0
 while num<(test.shape[0]):
-	print (y_test[num], np.argmax(n.query(x_test.iloc[num,:])))
-	num+=1
+        if np.argmax(n.test(x_test.iloc[num,:])) == y_test[num]:
+                match +=1
+        num+=1
+accuracy = (match/num)*100
+print ('Accuracy = %d percent\n' %accuracy)
+#######################################################
 
 
 ##########Comparison of performance with Keras#########
@@ -122,10 +126,8 @@ y_test = keras.utils.to_categorical(y_test, num_class)
 ##################set up model#########################
 model = Sequential()
 model.add(Conv2D(64, kernel_size=(3, 3), activation='relu', input_shape=input_shape))
-model.add(MaxPooling2D(pool_size=(2, 2)))
 model.add(Conv2D(32, (3, 3), activation='relu'))
 model.add(MaxPooling2D(pool_size=(2, 2)))
-model.add(Conv2D(16, (3, 3), activation='relu'))
 model.add(Flatten())
 model.add(Dense(128, activation='relu'))
 model.add(Dense(num_class, activation='softmax'))
